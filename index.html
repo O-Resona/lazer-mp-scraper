@@ -6,7 +6,7 @@
 <title>osu!lazer MP 成绩抓取</title>
 <style>
 :root{
-  --bg:#efeff2;
+  --bg:#e8e8ec;
   --panel:#ffffff;
   --panel-2:#f0f0f4;
   --border:#e3e3ea;
@@ -68,6 +68,9 @@ button.ghost{
 }
 button.ghost:hover:not(:disabled){border-color:var(--pink);color:var(--pink)}
 button.small{padding:7px 13px;font-size:12.5px}
+button.copied{
+  background:#e8f7ee;border-color:var(--green);color:var(--green);
+}
 .hint{color:var(--muted);font-size:12px;line-height:1.65;margin-top:8px}
 .hint code{
   background:var(--panel-2);padding:1px 6px;border-radius:5px;
@@ -193,6 +196,7 @@ https://osu.ppy.sh/multiplayer/rooms/4521825
         <option value="TRUE">仅通过</option>
         <option value="FALSE">仅失败</option>
       </select>
+      <button class="ghost small" id="copyTsv" type="button">复制</button>
       <button class="ghost small" id="exportTsv" type="button">导出 TSV</button>
       <button class="ghost small" id="exportCsv" type="button">导出 CSV</button>
     </div>
@@ -330,7 +334,6 @@ async function apiGet(path, attempt = 0) {
     return apiGet(path, attempt + 1);
   }
   if (res.status === 401){
-    // token 失效：清掉，让下一次自动重取
     TOKEN = "";
     TOKEN_AT = 0;
     throw new Error("access token 失效，请重试");
@@ -442,7 +445,6 @@ async function scrapeRoom(roomId){
 }
 
 async function start(){
-  // 解析房间列表
   const lines = $("rooms").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   const seen = new Set();
   const roomIds = [];
@@ -463,7 +465,6 @@ async function start(){
   $("resultSection").classList.remove("hidden");
   setProgress(0);
 
-  // 先确保拿到 token
   try {
     await ensureToken();
   } catch (e){
@@ -637,7 +638,7 @@ function refreshResult(){
 }
 
 /* =========================================================
-   导出
+   导出 / 复制
    ========================================================= */
 function currentRows(){
   const q    = $("q").value.trim().toLowerCase();
@@ -690,6 +691,27 @@ function buildDelimited(rows, delim){
   return lines.join("\r\n");
 }
 
+async function copyText(text){
+  if (navigator.clipboard && window.isSecureContext){
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {}
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.top = "-9999px";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
 function stamp(){
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
@@ -721,6 +743,24 @@ function bind(){
   $("q").addEventListener("input", renderTable);
   $("roomSel").addEventListener("change", renderTable);
   $("passSel").addEventListener("change", renderTable);
+
+  $("copyTsv").addEventListener("click", async () => {
+    if (!ROWS.length) return alert("还没有数据。");
+    const text = buildDelimited(currentRows(), "\t");
+    const ok = await copyText(text);
+    const btn = $("copyTsv");
+    const old = btn.textContent;
+    if (ok){
+      btn.textContent = "已复制 ✓";
+      btn.classList.add("copied");
+    } else {
+      btn.textContent = "复制失败";
+    }
+    setTimeout(() => {
+      btn.textContent = old;
+      btn.classList.remove("copied");
+    }, 1500);
+  });
 
   $("exportTsv").addEventListener("click", () => {
     if (!ROWS.length) return alert("还没有数据。");
