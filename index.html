@@ -191,12 +191,8 @@ https://osu.ppy.sh/multiplayer/rooms/4521825
     <div class="toolbar">
       <input type="search" id="q" placeholder="搜索 房间名 / 玩家 ID / 谱面 ID / Mods …" />
       <select id="roomSel"><option value="">全部房间</option></select>
-      <select id="passSel">
-        <option value="">全部状态</option>
-        <option value="TRUE">仅通过</option>
-        <option value="FALSE">仅失败</option>
-      </select>
       <button class="ghost small" id="copyTsv" type="button">复制</button>
+      <button class="ghost small" id="copyTsvNoHeader" type="button">复制（不含表头）</button>
       <button class="ghost small" id="exportTsv" type="button">导出 TSV</button>
       <button class="ghost small" id="exportCsv" type="button">导出 CSV</button>
     </div>
@@ -598,11 +594,9 @@ function renderStats(){
 function renderTable(){
   const q    = $("q").value.trim().toLowerCase();
   const room = $("roomSel").value;
-  const pass = $("passSel").value;
 
   let rows = ROWS.filter((r) => {
     if (room && r["Room Name"] !== room) return false;
-    if (pass && r["Passed?"] !== pass)   return false;
     if (q){
       const hay = [r["Room Name"], r["Room ID"], r["User ID"], r["Beatmap ID"],
                    r["Mods"], r["Rank"]].join(" ").toLowerCase();
@@ -643,10 +637,8 @@ function refreshResult(){
 function currentRows(){
   const q    = $("q").value.trim().toLowerCase();
   const room = $("roomSel").value;
-  const pass = $("passSel").value;
   const rows = ROWS.filter((r) => {
     if (room && r["Room Name"] !== room) return false;
-    if (pass && r["Passed?"] !== pass)   return false;
     if (q){
       const hay = [r["Room Name"], r["Room ID"], r["User ID"], r["Beatmap ID"],
                    r["Mods"], r["Rank"]].join(" ").toLowerCase();
@@ -675,7 +667,8 @@ function download(filename, text, mime){
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function buildDelimited(rows, delim){
+/* includeHeader: 是否输出表头行 */
+function buildDelimited(rows, delim, includeHeader = true){
   const clean = (v) => String(v == null ? "" : v).replace(/[\r\n]+/g, " ");
   const escapeCell = (v) => {
     const s = clean(v);
@@ -684,7 +677,8 @@ function buildDelimited(rows, delim){
     }
     return s.replace(/\t/g, " ");
   };
-  const lines = [COLUMNS.join(delim)];
+  const lines = [];
+  if (includeHeader) lines.push(COLUMNS.join(delim));
   for (const r of rows){
     lines.push(COLUMNS.map((c) => escapeCell(r[c])).join(delim));
   }
@@ -712,6 +706,22 @@ async function copyText(text){
   return ok;
 }
 
+/* 通用的“点一下 → 复制 → 短暂变绿”逻辑 */
+async function handleCopy(btn, text, label){
+  const ok = await copyText(text);
+  const old = btn.textContent;
+  if (ok){
+    btn.textContent = "已复制 ✓";
+    btn.classList.add("copied");
+  } else {
+    btn.textContent = "复制失败";
+  }
+  setTimeout(() => {
+    btn.textContent = old;
+    btn.classList.remove("copied");
+  }, 1500);
+}
+
 function stamp(){
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
@@ -737,38 +747,32 @@ function bind(){
     setStatus("等待开始…");
     $("resultSection").classList.add("hidden");
     $("q").value = "";
-    $("passSel").value = "";
   });
 
   $("q").addEventListener("input", renderTable);
   $("roomSel").addEventListener("change", renderTable);
-  $("passSel").addEventListener("change", renderTable);
 
+  // 复制（含表头）
   $("copyTsv").addEventListener("click", async () => {
     if (!ROWS.length) return alert("还没有数据。");
-    const text = buildDelimited(currentRows(), "\t");
-    const ok = await copyText(text);
-    const btn = $("copyTsv");
-    const old = btn.textContent;
-    if (ok){
-      btn.textContent = "已复制 ✓";
-      btn.classList.add("copied");
-    } else {
-      btn.textContent = "复制失败";
-    }
-    setTimeout(() => {
-      btn.textContent = old;
-      btn.classList.remove("copied");
-    }, 1500);
+    const text = buildDelimited(currentRows(), "\t", true);
+    await handleCopy($("copyTsv"), text);
+  });
+
+  // 复制（不含表头）
+  $("copyTsvNoHeader").addEventListener("click", async () => {
+    if (!ROWS.length) return alert("还没有数据。");
+    const text = buildDelimited(currentRows(), "\t", false);
+    await handleCopy($("copyTsvNoHeader"), text);
   });
 
   $("exportTsv").addEventListener("click", () => {
     if (!ROWS.length) return alert("还没有数据。");
-    download(`mp_scores_${stamp()}.tsv`, buildDelimited(currentRows(), "\t"), "text/tab-separated-values");
+    download(`mp_scores_${stamp()}.tsv`, buildDelimited(currentRows(), "\t", true), "text/tab-separated-values");
   });
   $("exportCsv").addEventListener("click", () => {
     if (!ROWS.length) return alert("还没有数据。");
-    download(`mp_scores_${stamp()}.csv`, buildDelimited(currentRows(), ","), "text/csv");
+    download(`mp_scores_${stamp()}.csv`, buildDelimited(currentRows(), ",", true), "text/csv");
   });
 }
 
