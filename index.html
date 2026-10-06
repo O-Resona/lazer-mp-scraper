@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>osu!lazer MP 成绩抓取</title>
+<style>
+:root{
+  --bg:#efeff2;
+  --panel:#ffffff;
+  --panel-2:#f0f0f4;
+  --border:#e3e3ea;
+  --text:#1c1c24;
+  --muted:#6e6e7e;
+  --pink:#ff66aa;
+  --purple:#8b7bff;
+  --green:#16a34a;
+  --red:#dc2626;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:14px;
+  min-height:100vh;
+}
+main{max-width:1600px;margin:0 auto;padding:34px 20px 90px}
+h1{
+  margin:0 0 6px;font-size:26px;letter-spacing:.4px;font-weight:800;
+  background:linear-gradient(90deg,var(--pink),var(--purple));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.sub{color:var(--muted);font-size:12.5px;margin-bottom:22px}
+.card{
+  background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:18px 20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.03);
+}
+.card h2{
+  margin:0 0 12px;font-size:13px;font-weight:700;letter-spacing:.6px;
+  color:#4a4a5a;text-transform:uppercase;
+}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.row + .row{margin-top:10px}
+input[type=text],input[type=password],textarea,select{
+  background:#fff;border:1px solid var(--border);border-radius:10px;
+  color:var(--text);padding:9px 13px;font-size:13.5px;outline:none;
+  font-family:inherit;transition:.15s;
+}
+input[type=text]:focus,input[type=password]:focus,textarea:focus,select:focus{
+  border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,102,170,.15);
+}
+input[type=text],input[type=password]{flex:1 1 200px;min-width:140px}
+textarea{
+  width:100%;min-height:120px;resize:vertical;line-height:1.6;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;
+}
+button{
+  background:var(--pink);border:none;border-radius:10px;color:#fff;
+  padding:10px 18px;font-size:13.5px;font-weight:600;cursor:pointer;
+  transition:.15s;font-family:inherit;
+}
+button:hover:not(:disabled){filter:brightness(1.05)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.ghost{
+  background:#fff;border:1px solid var(--border);color:var(--text);
+}
+button.ghost:hover:not(:disabled){border-color:var(--pink);color:var(--pink)}
+button.small{padding:7px 13px;font-size:12.5px}
+.hint{color:var(--muted);font-size:12px;line-height:1.65;margin-top:8px}
+.hint code{
+  background:var(--panel-2);padding:1px 6px;border-radius:5px;
+  font-size:11.5px;color:#6b5ce0;
+}
+/* 进度条 */
+.progress{
+  height:6px;background:var(--panel-2);border-radius:99px;overflow:hidden;margin:12px 0 8px;
+}
+.progress .bar{
+  height:100%;width:0;border-radius:99px;
+  background:var(--pink);transition:width .25s ease;
+}
+.status{font-size:12.5px;color:var(--muted);min-height:18px;font-variant-numeric:tabular-nums}
+.log{
+  margin-top:10px;max-height:120px;overflow:auto;font-size:12px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--muted);line-height:1.7;white-space:pre-wrap;
+}
+.log .err{color:var(--red)}
+.log .ok{color:var(--green)}
+/* 表格 */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.toolbar input[type=search]{
+  background:#fff;border:1px solid var(--border);border-radius:10px;
+  color:var(--text);padding:9px 13px;font-size:13.5px;outline:none;
+  flex:1 1 260px;min-width:180px;font-family:inherit;
+}
+.toolbar input[type=search]:focus{border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,102,170,.15)}
+.toolbar select{min-width:170px;cursor:pointer}
+.tablewrap{
+  background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  overflow:auto;max-height:70vh;
+}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;white-space:nowrap}
+thead th{
+  position:sticky;top:0;z-index:2;background:var(--panel-2);
+  text-align:left;padding:11px 13px;font-weight:600;font-size:12px;
+  letter-spacing:.4px;color:#4a4a5a;border-bottom:1px solid var(--border);
+  cursor:pointer;user-select:none;transition:color .12s;
+}
+thead th:hover{color:var(--pink)}
+thead th .arrow{color:var(--pink);margin-left:5px;font-size:10px}
+tbody td{padding:9px 13px;border-bottom:1px solid #f0f0f4;font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#fdf3f8}
+td.num{text-align:right}
+td.muted{color:var(--muted)}
+.rank{display:inline-block;min-width:26px;text-align:center;padding:2px 7px;border-radius:6px;font-weight:700;font-size:11.5px}
+.r-ss{background:linear-gradient(135deg,#ffd86b,#ff9d3f);color:#3a2200}
+.r-s{background:linear-gradient(135deg,#ffe9a8,#ffd86b);color:#4a3a00}
+.r-a{background:#d9f5e5;color:#0f8a44}
+.r-b{background:#e2ddff;color:#5a4bd6}
+.r-c{background:#ececf2;color:#4a4a5a}
+.r-d{background:#fde0e0;color:#c22a2a}
+.mod{display:inline-block;padding:1px 5px;margin-right:3px;border-radius:4px;
+     background:#e2ddff;color:#5a4bd6;font-size:11px;font-weight:600}
+.ok{color:var(--green)}
+.no{color:var(--red)}
+.empty{padding:48px;text-align:center;color:var(--muted)}
+.count{color:var(--muted);font-size:12.5px;margin:10px 2px 0;font-variant-numeric:tabular-nums}
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 16px;min-width:104px}
+.stat .n{display:block;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .l{display:block;font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.5px}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+<main>
+  <h1>osu!lazer MP 成绩抓取</h1>
+  <div class="sub">粘贴一个或多个多人房间链接，抓取所有谱面的成绩并导出表格</div>
+
+  <!-- 鉴权 -->
+  <section class="card">
+    <h2>1 · osu! API 凭证</h2>
+    <div class="row">
+      <input type="text" id="cid" placeholder="client_id" autocomplete="off" spellcheck="false" />
+      <input type="password" id="csec" placeholder="client_secret" autocomplete="off" spellcheck="false" />
+    </div>
+    <div class="hint">
+      在 <code>osu.ppy.sh/home/account/edit</code> 创建一个 OAuth 应用，
+      勾选 <code>Client Credentials Grant</code> 权限，然后把 client_id 和 client_secret 填进来。
+      点“开始抓取”时会自动换取 access token（有效期约 24 小时）。
+    </div>
+  </section>
+
+  <!-- 输入 -->
+  <section class="card">
+    <h2>2 · 多人房间链接（每行一个）</h2>
+    <textarea id="rooms" spellcheck="false"
+placeholder="https://osu.ppy.sh/community/matches/4416104
+https://osu.ppy.sh/multiplayer/rooms/4521825
+4416104"></textarea>
+    <div class="hint">
+      支持格式：<code>osu.ppy.sh/community/matches/{id}</code> ·
+      <code>osu.ppy.sh/multiplayer/rooms/{id}</code> · 直接填数字房间 ID
+    </div>
+  </section>
+
+  <!-- 操作 -->
+  <section class="card">
+    <h2>3 · 抓取</h2>
+    <div class="row">
+      <button id="start" type="button">开始抓取</button>
+      <button class="ghost" id="stop" type="button" disabled>停止</button>
+      <button class="ghost" id="clear" type="button">清空结果</button>
+    </div>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div class="status" id="status">等待开始…</div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <!-- 结果 -->
+  <section id="resultSection" class="hidden">
+    <div class="stats" id="stats"></div>
+
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="搜索 房间名 / 玩家 ID / 谱面 ID / Mods …" />
+      <select id="roomSel"><option value="">全部房间</option></select>
+      <select id="passSel">
+        <option value="">全部状态</option>
+        <option value="TRUE">仅通过</option>
+        <option value="FALSE">仅失败</option>
+      </select>
+      <button class="ghost small" id="exportTsv" type="button">导出 TSV</button>
+      <button class="ghost small" id="exportCsv" type="button">导出 CSV</button>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr id="head"></tr></thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+    <div class="count" id="count"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+/* =========================================================
+   常量
+   ========================================================= */
+const PROXY_BASE = "https://lazerlinkfinder.xiaolingfeng0721.workers.dev";
+const TOKEN_URL = "https://osu.ppy.sh/oauth/token";
+
+const COLUMNS = [
+  "Room Name","Room ID","User ID","Beatmap ID","Score","Passed?","Accuracy",
+  "Max Combo","Great(s)","Ok(s)","Meh(s)","Miss(es)","Mods","Rank","Scored at"
+];
+const NUMERIC = new Set(["Room ID","User ID","Beatmap ID","Score","Max Combo",
+                         "Great(s)","Ok(s)","Meh(s)","Miss(es)"]);
+const RIGHT   = new Set(["Room ID","User ID","Beatmap ID","Score","Accuracy",
+                         "Max Combo","Great(s)","Ok(s)","Meh(s)","Miss(es)"]);
+
+const TOKEN_TTL_MS = 20 * 3600 * 1000;   // 20 小时内复用
+
+/* =========================================================
+   状态
+   ========================================================= */
+let TOKEN = "";
+let TOKEN_AT = 0;
+let ABORT = false;
+let ROWS = [];
+let sortCol = "Scored at";
+let sortDir = 1;      // 1 升序 / -1 降序
+
+/* =========================================================
+   小工具
+   ========================================================= */
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => (
+    { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]
+  ));
+}
+function isBlank(v){ return v === undefined || v === null || v === ""; }
+
+/* 把一行文本解析成房间 ID */
+function parseRoomId(line){
+  const s = String(line || "").trim();
+  if (!s) return null;
+  let m = s.match(/(?:matches|rooms)\/(\d+)/i);
+  if (m) return m[1];
+  if (/^\d+$/.test(s)) return s;
+  m = s.match(/(\d{5,})/);
+  return m ? m[1] : null;
+}
+
+/* =========================================================
+   鉴权：用 client_id / client_secret 换取 access token
+   ========================================================= */
+async function fetchTokenViaClientCredentials(cid, csec){
+  const target = TOKEN_URL;
+  const proxyUrl = `${PROXY_BASE}/?target=${encodeURIComponent(target)}`;
+
+  const res = await fetch(proxyUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({
+      client_id: Number(cid),
+      client_secret: csec,
+      grant_type: "client_credentials",
+      scope: "public",
+    }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} ${txt.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  if (!data.access_token) throw new Error("响应里没有 access_token");
+  return data.access_token;
+}
+
+async function ensureToken(){
+  if (TOKEN && Date.now() - TOKEN_AT < TOKEN_TTL_MS) return TOKEN;
+
+  const cid = $("cid").value.trim();
+  const csec = $("csec").value.trim();
+  if (!cid || !csec) throw new Error("请填写 client_id 和 client_secret");
+
+  setStatus("正在获取 access token…");
+  log("正在获取 access token…");
+  const t = await fetchTokenViaClientCredentials(cid, csec);
+  TOKEN = t;
+  TOKEN_AT = Date.now();
+  log("access token 获取成功。", "ok");
+  return TOKEN;
+}
+
+/* =========================================================
+   API 请求（含重试 / 限速处理）
+   ========================================================= */
+async function apiGet(path, attempt = 0) {
+  const targetUrl = `https://osu.ppy.sh/api/v2${path}`;
+  const proxyUrl = `${PROXY_BASE}/?target=${encodeURIComponent(targetUrl)}`;
+
+  const res = await fetch(proxyUrl, {
+    headers: {
+      Authorization: "Bearer " + TOKEN,
+      Accept: "application/json",
+    },
+  });
+
+  if (res.status === 429){
+    if (attempt >= 5) throw new Error("被 osu! 限速，请稍后再试");
+    const wait = Number(res.headers.get("Retry-After") || 2);
+    log(`被限速，等待 ${wait}s 后重试…`, "err");
+    await sleep(wait * 1000);
+    return apiGet(path, attempt + 1);
+  }
+  if (res.status >= 500){
+    if (attempt >= 3) throw new Error("osu! 服务端错误 " + res.status);
+    await sleep(1000 * (attempt + 1));
+    return apiGet(path, attempt + 1);
+  }
+  if (res.status === 401){
+    // token 失效：清掉，让下一次自动重取
+    TOKEN = "";
+    TOKEN_AT = 0;
+    throw new Error("access token 失效，请重试");
+  }
+  if (res.status === 403) throw new Error("没有权限访问该资源");
+  if (res.status === 404) throw new Error("房间或谱面不存在");
+  if (!res.ok) throw new Error("HTTP " + res.status);
+
+  return res.json();
+}
+
+/* =========================================================
+   字段格式化
+   ========================================================= */
+function fmtAccuracy(v){
+  if (isBlank(v)) return "";
+  const n = Number(v);
+  return Number.isFinite(n) ? (n * 100).toFixed(2) + "%" : "";
+}
+function fmtMods(mods){
+  if (!Array.isArray(mods) || !mods.length) return "";
+  const parts = [];
+  for (const m of mods){
+    if (typeof m === "string") { parts.push(m); continue; }
+    if (m && typeof m === "object"){
+      let acr = m.acronym || m.acronyms || "";
+      if (Array.isArray(acr)) acr = acr.join("");
+      if (acr) parts.push(String(acr));
+    }
+  }
+  return parts.join("");
+}
+function fmtCell(v){
+  if (v === undefined || v === null) return "";
+  return String(v);
+}
+
+function buildRow(roomName, roomId, score){
+  const stats = score.statistics || {};
+  const user = score.user || {};
+  const uid = score.user_id != null ? score.user_id : user.id;
+
+  return {
+    "Room Name":  fmtCell(roomName),
+    "Room ID":    fmtCell(roomId),
+    "User ID":    fmtCell(uid),
+    "Beatmap ID": fmtCell(score.beatmap_id),
+    "Score":      fmtCell(score.total_score),
+    "Passed?":    score.passed ? "TRUE" : (score.passed === false ? "FALSE" : ""),
+    "Accuracy":   fmtAccuracy(score.accuracy),
+    "Max Combo":  fmtCell(score.max_combo),
+    "Great(s)":   fmtCell(stats.great),
+    "Ok(s)":      fmtCell(stats.ok),
+    "Meh(s)":     fmtCell(stats.meh),
+    "Miss(es)":   fmtCell(stats.miss),
+    "Mods":       fmtMods(score.mods),
+    "Rank":       fmtCell(score.rank),
+    "Scored at":  fmtCell(score.ended_at),
+  };
+}
+
+/* =========================================================
+   UI 辅助
+   ========================================================= */
+function log(msg, cls){
+  const el = $("log");
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog(){ $("log").innerHTML = ""; }
+
+function setStatus(text){ $("status").textContent = text; }
+function setProgress(pct){ $("bar").style.width = Math.max(0, Math.min(100, pct)) + "%"; }
+
+/* =========================================================
+   抓取主流程
+   ========================================================= */
+async function scrapeRoom(roomId){
+  const room = await apiGet(`/rooms/${roomId}`);
+  const roomName = room.name || room.category || `Room ${roomId}`;
+  const playlist = Array.isArray(room.playlist) ? room.playlist : [];
+
+  log(`房间 ${roomId} 「${roomName}」 · ${playlist.length} 个谱面`, "ok");
+
+  const rows = [];
+  for (let i = 0; i < playlist.length; i++){
+    if (ABORT) break;
+    const item = playlist[i];
+    const itemId = item.id;
+    const mapId = item.beatmap_id != null ? item.beatmap_id : "?";
+
+    setStatus(`房间 ${roomName} — 谱面 ${i + 1}/${playlist.length}（beatmap ${mapId}）`);
+
+    try {
+      const raw = await apiGet(`/rooms/${roomId}/playlist/${itemId}/scores`);
+      const scores = Array.isArray(raw) ? raw : (raw && raw.scores) || [];
+      for (const s of scores) rows.push(buildRow(roomName, roomId, s));
+    } catch (e){
+      log(`  ✗ 谱面 ${mapId} 抓取失败：${e.message}`, "err");
+    }
+
+    await sleep(120);  // 轻微限速，避免触发 429
+  }
+
+  return { roomName, rows };
+}
+
+async function start(){
+  // 解析房间列表
+  const lines = $("rooms").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const seen = new Set();
+  const roomIds = [];
+  for (const line of lines){
+    const id = parseRoomId(line);
+    if (id && !seen.has(id)){ seen.add(id); roomIds.push(id); }
+  }
+  if (!roomIds.length){
+    alert("没有解析出任何房间 ID，请检查链接格式。");
+    return;
+  }
+
+  ABORT = false;
+  ROWS = [];
+  clearLog();
+  $("start").disabled = true;
+  $("stop").disabled = false;
+  $("resultSection").classList.remove("hidden");
+  setProgress(0);
+
+  // 先确保拿到 token
+  try {
+    await ensureToken();
+  } catch (e){
+    setStatus("获取令牌失败。");
+    log("获取令牌失败：" + e.message, "err");
+    alert("获取令牌失败：" + e.message);
+    $("start").disabled = false;
+    $("stop").disabled = true;
+    return;
+  }
+
+  log(`开始抓取 ${roomIds.length} 个房间：${roomIds.join(", ")}`);
+
+  try {
+    for (let i = 0; i < roomIds.length; i++){
+      if (ABORT) break;
+      const rid = roomIds[i];
+      setStatus(`正在获取房间 ${rid} …`);
+      try {
+        const { rows } = await scrapeRoom(rid);
+        ROWS = ROWS.concat(rows);
+        log(`  → 房间 ${rid} 共 ${rows.length} 条成绩`, "ok");
+      } catch (e){
+        log(`房间 ${rid} 抓取失败：${e.message}`, "err");
+      }
+      setProgress(((i + 1) / roomIds.length) * 100);
+      refreshResult();
+    }
+
+    if (ABORT){
+      setStatus("已停止。");
+      log("用户中止了抓取。", "err");
+    } else {
+      setStatus(`完成，共 ${ROWS.length} 条成绩。`);
+      log(`全部完成，共 ${ROWS.length} 条成绩。`, "ok");
+    }
+  } catch (e){
+    setStatus("出错了：" + e.message);
+    log("抓取异常：" + e.message, "err");
+  } finally {
+    $("start").disabled = false;
+    $("stop").disabled = true;
+  }
+}
+
+/* =========================================================
+   结果渲染
+   ========================================================= */
+function rankClass(r){
+  const v = String(r || "").toUpperCase();
+  if (v === "XH" || v === "X" || v === "SS") return "r-ss";
+  if (v === "SH" || v === "S") return "r-s";
+  if (v === "A") return "r-a";
+  if (v === "B") return "r-b";
+  if (v === "C") return "r-c";
+  if (v === "D") return "r-d";
+  return "r-c";
+}
+function sortKey(col, row){
+  const v = row[col] == null ? "" : row[col];
+  if (col === "Accuracy") return parseFloat(String(v).replace("%", "")) || 0;
+  if (col === "Passed?")  return v === "TRUE" ? 1 : 0;
+  if (NUMERIC.has(col))   return parseFloat(v) || 0;
+  return String(v).toLowerCase();
+}
+function cellHTML(col, row){
+  const v = row[col] == null ? "" : row[col];
+  if (v === "") return '<span class="muted">—</span>';
+  if (col === "Rank") return `<span class="rank ${rankClass(v)}">${esc(v)}</span>`;
+  if (col === "Mods"){
+    const chunks = String(v).match(/../g) || [String(v)];
+    return chunks.map((m) => `<span class="mod">${esc(m)}</span>`).join("");
+  }
+  if (col === "Passed?")
+    return `<span class="${v === "TRUE" ? "ok" : "no"}">${esc(v)}</span>`;
+  return esc(v);
+}
+
+function updateArrows(){
+  document.querySelectorAll("#head th").forEach((th) => {
+    const a = th.querySelector(".arrow");
+    if (!a) return;
+    a.textContent = th.dataset.col === sortCol ? (sortDir === 1 ? "▲" : "▼") : "";
+  });
+}
+
+function initHead(){
+  const tr = $("head");
+  tr.innerHTML = COLUMNS.map((c) =>
+    `<th data-col="${esc(c)}">${esc(c)}<span class="arrow"></span></th>`
+  ).join("");
+
+  tr.querySelectorAll("th").forEach((th) => {
+    th.addEventListener("click", () => {
+      const c = th.dataset.col;
+      if (sortCol === c) sortDir *= -1;
+      else { sortCol = c; sortDir = 1; }
+      updateArrows();
+      renderTable();
+    });
+  });
+  updateArrows();
+}
+
+function initRoomFilter(){
+  const sel = $("roomSel");
+  const current = sel.value;
+  const names = [...new Set(ROWS.map((r) => r["Room Name"]).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">全部房间</option>' +
+    names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  if (names.includes(current)) sel.value = current;
+}
+
+function renderStats(){
+  const players = new Set(ROWS.map((r) => r["User ID"]).filter(Boolean));
+  const maps    = new Set(ROWS.map((r) => r["Beatmap ID"]).filter(Boolean));
+  const rooms   = new Set(ROWS.map((r) => r["Room ID"]).filter(Boolean));
+  const passed  = ROWS.filter((r) => r["Passed?"] === "TRUE").length;
+
+  $("stats").innerHTML = [
+    [ROWS.length,  "成绩"],
+    [passed,       "通过"],
+    [players.size, "玩家"],
+    [maps.size,    "谱面"],
+    [rooms.size,   "房间"],
+  ].map(([n, l]) =>
+    `<div class="stat"><span class="n">${n}</span><span class="l">${l}</span></div>`
+  ).join("");
+}
+
+function renderTable(){
+  const q    = $("q").value.trim().toLowerCase();
+  const room = $("roomSel").value;
+  const pass = $("passSel").value;
+
+  let rows = ROWS.filter((r) => {
+    if (room && r["Room Name"] !== room) return false;
+    if (pass && r["Passed?"] !== pass)   return false;
+    if (q){
+      const hay = [r["Room Name"], r["Room ID"], r["User ID"], r["Beatmap ID"],
+                   r["Mods"], r["Rank"]].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a, b) => {
+    const ka = sortKey(sortCol, a), kb = sortKey(sortCol, b);
+    if (ka < kb) return -1 * sortDir;
+    if (ka > kb) return  1 * sortDir;
+    return 0;
+  });
+
+  const body = $("body");
+  if (!rows.length){
+    body.innerHTML = `<tr><td class="empty" colspan="${COLUMNS.length}">没有匹配的成绩</td></tr>`;
+  } else {
+    body.innerHTML = rows.map((r) =>
+      "<tr>" + COLUMNS.map((c) =>
+        `<td class="${RIGHT.has(c) ? "num" : ""}">${cellHTML(c, r)}</td>`
+      ).join("") + "</tr>"
+    ).join("");
+  }
+  $("count").textContent = `显示 ${rows.length} / ${ROWS.length} 条成绩`;
+}
+
+function refreshResult(){
+  initRoomFilter();
+  renderStats();
+  renderTable();
+}
+
+/* =========================================================
+   导出
+   ========================================================= */
+function currentRows(){
+  const q    = $("q").value.trim().toLowerCase();
+  const room = $("roomSel").value;
+  const pass = $("passSel").value;
+  const rows = ROWS.filter((r) => {
+    if (room && r["Room Name"] !== room) return false;
+    if (pass && r["Passed?"] !== pass)   return false;
+    if (q){
+      const hay = [r["Room Name"], r["Room ID"], r["User ID"], r["Beatmap ID"],
+                   r["Mods"], r["Rank"]].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  rows.sort((a, b) => {
+    const ka = sortKey(sortCol, a), kb = sortKey(sortCol, b);
+    if (ka < kb) return -1 * sortDir;
+    if (ka > kb) return  1 * sortDir;
+    return 0;
+  });
+  return rows;
+}
+
+function download(filename, text, mime){
+  const blob = new Blob(["\ufeff" + text], { type: (mime || "text/plain") + ";charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildDelimited(rows, delim){
+  const clean = (v) => String(v == null ? "" : v).replace(/[\r\n]+/g, " ");
+  const escapeCell = (v) => {
+    const s = clean(v);
+    if (delim === ","){
+      return /[",]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    return s.replace(/\t/g, " ");
+  };
+  const lines = [COLUMNS.join(delim)];
+  for (const r of rows){
+    lines.push(COLUMNS.map((c) => escapeCell(r[c])).join(delim));
+  }
+  return lines.join("\r\n");
+}
+
+function stamp(){
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+/* =========================================================
+   事件绑定 & 初始化
+   ========================================================= */
+function bind(){
+  $("start").addEventListener("click", start);
+
+  $("stop").addEventListener("click", () => {
+    ABORT = true;
+    $("stop").disabled = true;
+    setStatus("正在停止…");
+  });
+
+  $("clear").addEventListener("click", () => {
+    ROWS = [];
+    clearLog();
+    setProgress(0);
+    setStatus("等待开始…");
+    $("resultSection").classList.add("hidden");
+    $("q").value = "";
+    $("passSel").value = "";
+  });
+
+  $("q").addEventListener("input", renderTable);
+  $("roomSel").addEventListener("change", renderTable);
+  $("passSel").addEventListener("change", renderTable);
+
+  $("exportTsv").addEventListener("click", () => {
+    if (!ROWS.length) return alert("还没有数据。");
+    download(`mp_scores_${stamp()}.tsv`, buildDelimited(currentRows(), "\t"), "text/tab-separated-values");
+  });
+  $("exportCsv").addEventListener("click", () => {
+    if (!ROWS.length) return alert("还没有数据。");
+    download(`mp_scores_${stamp()}.csv`, buildDelimited(currentRows(), ","), "text/csv");
+  });
+}
+
+function init(){
+  bind();
+  initHead();
+}
+
+init();
+</script>
+</body>
+</html>
