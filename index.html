@@ -29,8 +29,7 @@ body{
 main{max-width:1600px;margin:0 auto;padding:34px 20px 90px}
 h1{
   margin:0 0 6px;font-size:26px;letter-spacing:.4px;font-weight:800;
-  background:linear-gradient(90deg,var(--pink),var(--purple));
-  -webkit-background-clip:text;background-clip:text;color:transparent;
+  color:var(--pink);
 }
 .sub{color:var(--muted);font-size:12.5px;margin-bottom:22px}
 .card{
@@ -707,7 +706,7 @@ async function copyText(text){
 }
 
 /* 通用的“点一下 → 复制 → 短暂变绿”逻辑 */
-async function handleCopy(btn, text, label){
+async function handleCopy(btn, text){
   const ok = await copyText(text);
   const old = btn.textContent;
   if (ok){
@@ -755,15 +754,13 @@ function bind(){
   // 复制（含表头）
   $("copyTsv").addEventListener("click", async () => {
     if (!ROWS.length) return alert("还没有数据。");
-    const text = buildDelimited(currentRows(), "\t", true);
-    await handleCopy($("copyTsv"), text);
+    await handleCopy($("copyTsv"), buildDelimited(currentRows(), "\t", true));
   });
 
   // 复制（不含表头）
   $("copyTsvNoHeader").addEventListener("click", async () => {
     if (!ROWS.length) return alert("还没有数据。");
-    const text = buildDelimited(currentRows(), "\t", false);
-    await handleCopy($("copyTsvNoHeader"), text);
+    await handleCopy($("copyTsvNoHeader"), buildDelimited(currentRows(), "\t", false));
   });
 
   $("exportTsv").addEventListener("click", () => {
